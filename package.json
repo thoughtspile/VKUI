@@ -122,7 +122,7 @@
     "test:e2e": "jest --config e2e/jest.e2e.config.js",
     "test:code": "jest",
 
-    "lint:es": "eslint --ext .jsx,.js,.ts,.tsx src/ --cache --cache-location .cache/.eslintcache",
+    "lint:es": "eslint --ext .jsx,.js,.ts,.tsx src/ e2e/ --cache --cache-location .cache/.eslintcache",
     "lint:es:ci": "yarn lint:es -o lint-results.json -f json",
     "lint:style": "stylelint \"./src/**/*.css\" --cache --cache-location .cache/.stylelintcache",
     "typecheck": "tsc --incremental --emitDeclarationOnly --declaration --tsBuildInfoFile .cache/.tsbuildinfo --outDir .cache/ts",
