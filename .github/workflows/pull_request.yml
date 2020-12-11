@@ -18,9 +18,8 @@ jobs:
       - uses: bahmutov/npm-install@v1
       - name: Run tests
         run: yarn test:ci
-      - name: FYI visual tests
+      - name: Visual tests
         run: yarn test:e2e
-        continue-on-error: true
       - name: Create test report
         if: always()
         run: yarn danger ci
