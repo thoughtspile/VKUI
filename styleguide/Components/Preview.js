@@ -96,7 +96,7 @@ export default class Preview extends PreviewParent {
               <ReactFrame
                 mountTarget="body"
                 style={{
-                  height: 667,
+                  height: styleGuideContext.height,
                   width: styleGuideContext.width,
                   border: '1px solid rgba(0, 0, 0, .12)',
                   display: 'block',
@@ -110,7 +110,7 @@ export default class Preview extends PreviewParent {
                       scheme={styleGuideContext.scheme}
                       webviewType={styleGuideContext.webviewType}
                     >
-                      <AdaptivityProvider window={window} sizeY={styleGuideContext.sizeY}>
+                      <AdaptivityProvider window={window} hasMouse={styleGuideContext.hasMouse}>
                         <Layout>
                           <ReactExample
                             code={code}

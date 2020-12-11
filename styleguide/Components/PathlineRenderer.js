@@ -8,7 +8,8 @@ import { PlatformSelect } from './PlatformSelect';
 import { SchemeSelect } from './SchemeSelect';
 import { WebviewTypeSelect } from './WebviewTypeSelect';
 import { ViewWidthSelect } from './ViewWidthSelect';
-import { SizeYSelect } from './SizeYSelect';
+import { ViewHeightSelect } from './ViewHeightSelect';
+import { HasMouseCheckbox } from './HasMouseCheckbox';
 import { VKCOM } from '../../src/lib/platform';
 
 export const styles = ({ fontFamily, fontSize }) => ({
@@ -35,6 +36,7 @@ export function PathlineRenderer({ classes, children }) {
             <SchemeSelect
               onChange={(e) => styleGuideContext.setContext({ scheme: e.target.value })}
               value={styleGuideContext.scheme}
+              disabled={styleGuideContext.platform === VKCOM}
             />
             &nbsp;|&nbsp;
             <WebviewTypeSelect
@@ -49,9 +51,14 @@ export function PathlineRenderer({ classes, children }) {
               isVKCOM={styleGuideContext.platform === VKCOM}
             />
             &nbsp;|&nbsp;
-            <SizeYSelect
-              onChange={(e) => styleGuideContext.setContext({ sizeY: e.target.value })}
-              value={styleGuideContext.sizeY}
+            <ViewHeightSelect
+              onChange={(e) => styleGuideContext.setContext({ height: Number(e.target.value) })}
+              value={styleGuideContext.height}
+            />
+            &nbsp;|&nbsp;
+            <HasMouseCheckbox 
+              onChange={(e) => styleGuideContext.setContext({ hasMouse: e.target.checked })}
+              value={styleGuideContext.hasMouse}
               disabled={styleGuideContext.platform === VKCOM}
             />
             &nbsp;|&nbsp;
