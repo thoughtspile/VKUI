@@ -1,7 +1,7 @@
 import React, { Component, HTMLAttributes, MouseEvent } from 'react';
 import getClassName from '../../helpers/getClassName';
 import classNames from '../../lib/classNames';
-import { ANDROID } from '../../lib/platform';
+import { ANDROID, VKCOM } from '../../lib/platform';
 import { animationEvent } from '../../lib/supportEvents';
 import withPlatform from '../../hoc/withPlatform';
 import { HasPlatform } from '../../types';
@@ -28,7 +28,7 @@ class PopoutWrapper extends Component<PopoutWrapperProps, PopoutWrapperState> {
   constructor(props: PopoutWrapperProps) {
     super(props);
     this.state = {
-      opened: false,
+      opened: !props.hasMask,
     };
     this.elRef = React.createRef();
   }
@@ -68,7 +68,7 @@ class PopoutWrapper extends Component<PopoutWrapperProps, PopoutWrapperState> {
       elem.addEventListener(animationEvent.name, eventHandler);
     } else {
       clearTimeout(this.animationFinishTimeout);
-      this.animationFinishTimeout = setTimeout(eventHandler, this.props.platform === ANDROID ? 200 : 300);
+      this.animationFinishTimeout = setTimeout(eventHandler, this.props.platform === ANDROID || this.props.platform === VKCOM ? 200 : 300);
     }
   }
 
@@ -90,6 +90,7 @@ class PopoutWrapper extends Component<PopoutWrapperProps, PopoutWrapperState> {
         className={classNames(baseClassNames, `PopoutWrapper--v-${alignY}`, `PopoutWrapper--h-${alignX}`, {
           'PopoutWrapper--closing': closing,
           'PopoutWrapper--opened': this.state.opened,
+          'PopoutWrapper--fixed': hasMask,
         }, className)}
         ref={this.elRef}
       >

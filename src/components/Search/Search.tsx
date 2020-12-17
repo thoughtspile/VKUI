@@ -12,10 +12,14 @@ import withPlatform from '../../hoc/withPlatform';
 import getClassname from '../../helpers/getClassName';
 import Icon16SearchOutline from '@vkontakte/icons/dist/16/search_outline';
 import Icon16Clear from '@vkontakte/icons/dist/16/clear';
-import { IOS } from '../../lib/platform';
+import Icon24Cancel from '@vkontakte/icons/dist/24/cancel';
+import { IOS, VKCOM } from '../../lib/platform';
 import { HasPlatform, HasRef } from '../../types';
 import Touch, { TouchEventHandler, TouchEvent } from '../Touch/Touch';
 import { VKUITouchEvent } from '../../lib/touch';
+import { setRef } from '../../lib/utils';
+import Text from '../Typography/Text/Text';
+import { Separator } from '../../index';
 
 let searchId = 0;
 
@@ -109,15 +113,8 @@ class Search extends Component<SearchProps, SearchState> {
   };
 
   inputRef: InputRef = (element: HTMLInputElement) => {
-    const getRef = this.props.getRef;
     this.inputEl = element;
-    if (getRef) {
-      if (typeof getRef === 'function') {
-        getRef(element);
-      } else {
-        getRef.current = element;
-      }
-    }
+    setRef(element, this.props.getRef);
   };
 
   render() {
@@ -146,7 +143,7 @@ class Search extends Component<SearchProps, SearchState> {
       }, className)}>
         <div className="Search__in">
           <div className="Search__width" />
-          <div className="Search__control">
+          <label className="Search__control">
             <input
               {...inputProps}
               ref={this.inputRef}
@@ -161,10 +158,13 @@ class Search extends Component<SearchProps, SearchState> {
             <div className="Search__placeholder">
               <div className="Search__placeholder-in">
                 <Icon16SearchOutline />
-                <div className="Search__placeholder-text" dangerouslySetInnerHTML={{ __html: placeholder }} />
+                <div className="Search__placeholder-text">
+                  {platform === VKCOM ? <Text weight="regular">{placeholder}</Text> : placeholder}
+                </div>
               </div>
+              {this.state.focused && platform === IOS && after && <div className="Search__after-width">{after}</div>}
             </div>
-          </div>
+          </label>
           <div className="Search__after" onClick={this.onCancel}>
             <div className="Search__icons">
               {icon &&
@@ -174,7 +174,11 @@ class Search extends Component<SearchProps, SearchState> {
               }
               {!!this.value &&
                 <Touch onStart={this.onIconCancelClickStart} className="Search__icon">
-                  <Icon16Clear />
+                  {platform === VKCOM ?
+                    <Icon24Cancel />
+                    :
+                    <Icon16Clear />
+                  }
                 </Touch>
               }
             </div>
@@ -183,6 +187,7 @@ class Search extends Component<SearchProps, SearchState> {
             }
           </div>
         </div>
+        {platform === VKCOM && <Separator className="Search__separator" wide />}
       </div>
     );
   }

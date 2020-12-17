@@ -1,24 +1,32 @@
-import React, { Component, HTMLAttributes, ReactElement, RefCallback } from 'react';
+import React, { Component, HTMLAttributes, ReactElement, RefCallback, useCallback, useEffect, useState } from 'react';
 import getClassName from '../../helpers/getClassName';
 import Touch, { TouchEventHandler, TouchEvent } from '../Touch/Touch';
 import classNames from '../../lib/classNames';
 import withPlatform from '../../hoc/withPlatform';
-import { HasAlign, HasPlatform } from '../../types';
+import { HasAlign, HasPlatform, HasRef, HasRootRef } from '../../types';
 import { canUseDOM } from '../../lib/dom';
+import { setRef } from '../../lib/utils';
+import { withFrame, FrameProps } from '../../hoc/withFrame';
 
-export interface GalleryProps extends
+export interface BaseGalleryProps extends
   Omit<HTMLAttributes<HTMLDivElement>, 'onChange' | 'onDragStart' | 'onDragEnd'>,
   HasPlatform,
-  HasAlign {
+  HasAlign,
+  HasRootRef<HTMLDivElement>,
+  HasRef<HTMLElement> {
   slideWidth?: string | number;
-  timeout?: number;
-  initialSlideIndex?: number;
   slideIndex?: number;
   onDragStart?: TouchEventHandler;
   onDragEnd?: TouchEventHandler;
-  onChange?(current: GalleryState['current']): void;
-  onEnd?({ targetIndex }: { targetIndex: GalleryState['current'] }): void;
+  onChange?(current: number): void;
+  onEnd?({ targetIndex }: { targetIndex: number }): void;
   bullets?: 'dark' | 'light' | false;
+  isDraggable?: boolean;
+}
+
+export interface GalleryProps extends BaseGalleryProps {
+  initialSlideIndex?: number;
+  timeout?: number;
 }
 
 export interface GalleryState {
@@ -27,7 +35,6 @@ export interface GalleryState {
   min?: number;
   max?: number;
   startT?: Date;
-  current: number;
   deltaX: number;
   shiftX: number;
   slides: GallerySlidesState[];
@@ -41,23 +48,14 @@ export interface GallerySlidesState {
   width: number;
 }
 
-type SetTimeout = (duration: number) => void;
-
 type GetSlideRef = (index: number) => RefCallback<HTMLElement>;
 
-class Gallery extends Component<GalleryProps, GalleryState> {
+class BaseGallery extends Component<BaseGalleryProps & FrameProps, GalleryState> {
   constructor(props: GalleryProps) {
     super(props);
 
-    const current = typeof props.slideIndex === 'number' ? props.slideIndex : props.initialSlideIndex;
-
-    if (!this.props.onChange && typeof this.props.slideIndex === 'number') {
-      this.logControlledError();
-    }
-
     this.state = {
       containerWidth: 0,
-      current,
       deltaX: 0,
       shiftX: 0,
       slides: [],
@@ -65,37 +63,28 @@ class Gallery extends Component<GalleryProps, GalleryState> {
       duration: 0.24,
     };
 
-    this.container = React.createRef();
-
     this.slidesStore = {};
   }
 
-  container: React.RefObject<HTMLDivElement>;
+  container: HTMLDivElement;
   slidesStore: {
     [index: string]: HTMLElement;
   };
   viewport: HTMLElement;
-  timeout: number;
-  isChildrenDirty: boolean;
 
-  static defaultProps: GalleryProps = {
+  static defaultProps: Partial<BaseGalleryProps> = {
     slideWidth: '100%',
     children: '',
-    timeout: 0,
-    initialSlideIndex: 0,
     align: 'left',
     bullets: false,
+    isDraggable: true,
   };
-
-  logControlledError() {
-    console.error('Failed prop type: You provided a `slideIndex` prop to `Gallery` without an `onChange` handler.');
-  }
 
   get isCenterWithCustomWidth() {
     return this.props.slideWidth === 'custom' && this.props.align === 'center';
   }
 
-  initializeSlides(callback?: VoidFunction) {
+  initializeSlides() {
     const slides: GallerySlidesState[] = React.Children.map(
       this.props.children,
       (_item: ReactElement, i: number): GallerySlidesState => {
@@ -106,13 +95,15 @@ class Gallery extends Component<GalleryProps, GalleryState> {
         };
       });
 
-    const containerWidth = this.container.current.offsetWidth;
+    const containerWidth = this.container.offsetWidth;
     const layerWidth = slides.reduce((val: number, slide: GallerySlidesState) => slide.width + val, 0);
 
     const min = this.calcMin({ containerWidth, layerWidth, slides });
     const max = this.calcMax({ slides });
 
-    this.setState({ min, max, layerWidth, containerWidth, slides }, callback);
+    this.setState({ min, max, layerWidth, containerWidth, slides }, () => {
+      this.setState({ shiftX: this.calculateIndent(this.props.slideIndex) });
+    });
   }
 
   calcMin({ containerWidth, layerWidth, slides }: Pick<GalleryState, 'containerWidth' | 'layerWidth' | 'slides'>) {
@@ -148,7 +139,7 @@ class Gallery extends Component<GalleryProps, GalleryState> {
   calculateIndent(targetIndex: number) {
     const { slides } = this.state;
 
-    if (!this.isDraggable) {
+    if (this.isFullyVisible) {
       return 0;
     }
 
@@ -196,15 +187,16 @@ class Gallery extends Component<GalleryProps, GalleryState> {
     return value;
   }
 
-  get isDraggable() {
-    return this.state.layerWidth > this.state.containerWidth;
+  get isFullyVisible() {
+    return this.state.layerWidth <= this.state.containerWidth;
   }
 
   /*
    * Получает индекс слайда, к которому будет осуществлен переход
    */
   getTarget() {
-    const { slides, current, deltaX, shiftX, startT, max } = this.state;
+    const { slides, deltaX, shiftX, startT, max } = this.state;
+    const { slideIndex } = this.props;
     const expectDeltaX = deltaX / (Date.now() - startT.getTime()) * 240 * 0.6;
     const shift = shiftX + deltaX + expectDeltaX - max;
     const direction = deltaX < 0 ? 1 : -1;
@@ -215,10 +207,10 @@ class Gallery extends Component<GalleryProps, GalleryState> {
       const currentValue = Math.abs(item.coordX + shift);
 
       return previousValue < currentValue ? val : index;
-    }, current);
+    }, slideIndex);
 
-    if (targetIndex === current) {
-      let targetSlide = current + direction;
+    if (targetIndex === slideIndex) {
+      let targetSlide = slideIndex + direction;
 
       if (targetSlide >= 0 && targetSlide < slides.length) {
         if (Math.abs(deltaX) > slides[targetSlide].width * 0.05) {
@@ -230,29 +222,6 @@ class Gallery extends Component<GalleryProps, GalleryState> {
     return targetIndex;
   }
 
-  go(targetIndex: number) {
-    if (typeof this.props.slideIndex === 'number' && !this.props.onChange) {
-      this.logControlledError();
-      this.setState({
-        animation: true,
-        deltaX: 0,
-        shiftX: this.calculateIndent(this.state.current),
-      });
-    } else {
-      this.setState({
-        animation: true,
-        deltaX: 0,
-        shiftX: this.calculateIndent(targetIndex),
-        current: targetIndex,
-      });
-
-      if (this.timeout) {
-        this.clearTimeout();
-        this.setTimeout(this.props.timeout);
-      }
-    }
-  };
-
   onStart: TouchEventHandler = (e: TouchEvent) => {
     this.setState({
       animation: false,
@@ -261,7 +230,7 @@ class Gallery extends Component<GalleryProps, GalleryState> {
   };
 
   onMoveX: TouchEventHandler = (e: TouchEvent) => {
-    if (this.isDraggable) {
+    if (this.props.isDraggable && !this.isFullyVisible) {
       e.originalEvent.preventDefault();
 
       if (e.isSlideX) {
@@ -278,9 +247,9 @@ class Gallery extends Component<GalleryProps, GalleryState> {
   };
 
   onEnd: TouchEventHandler = (e: TouchEvent) => {
-    const targetIndex = e.isSlide ? this.getTarget() : this.state.current;
+    const targetIndex = e.isSlide ? this.getTarget() : this.props.slideIndex;
     this.props.onDragEnd && this.props.onDragEnd(e);
-    this.go(targetIndex);
+    this.setState({ deltaX: 0, animation: true }, () => this.props.onChange(targetIndex));
 
     if (this.props.onEnd) {
       this.props.onEnd({ targetIndex });
@@ -290,33 +259,11 @@ class Gallery extends Component<GalleryProps, GalleryState> {
   onResize: VoidFunction = () => {
     this.initializeSlides();
 
-    const { layerWidth, slides } = this.state;
-    const containerWidth = this.container.current.offsetWidth;
-
     this.setState({
-      shiftX: this.calculateIndent(this.state.current),
-      containerWidth,
-      min: this.calcMin({ layerWidth, containerWidth, slides }),
-      max: this.calcMax({ slides }),
       animation: false,
     }, () => {
-      window.requestAnimationFrame(() => this.setState({ animation: true }));
+      this.props.window.requestAnimationFrame(() => this.setState({ animation: true }));
     });
-  };
-
-  setTimeout: SetTimeout = (duration: number) => {
-    if (canUseDOM) {
-      this.timeout = window.setTimeout(() => {
-        const { slides, current } = this.state;
-        const targetIndex = current < slides.length - 1 ? current + 1 : 0;
-
-        this.go(targetIndex);
-      }, duration);
-    }
-  };
-
-  clearTimeout: VoidFunction = () => {
-    clearTimeout(this.timeout);
   };
 
   getSlideRef: GetSlideRef = (id: number) => (slide) => {
@@ -325,66 +272,45 @@ class Gallery extends Component<GalleryProps, GalleryState> {
 
   getViewportRef: RefCallback<HTMLElement> = (viewport) => {
     this.viewport = viewport;
+    setRef(viewport, this.props.getRef);
+  };
+
+  getRootRef: RefCallback<HTMLDivElement> = (container) => {
+    this.container = container;
+    setRef(container, this.props.getRootRef);
   };
 
   componentDidMount() {
-    this.initializeSlides(() => {
-      this.setState({
-        shiftX: this.calculateIndent(this.state.current),
-      });
-    });
-
-    window.addEventListener('resize', this.onResize);
-
-    if (this.props.timeout) {
-      this.setTimeout(this.props.timeout);
-    }
+    this.initializeSlides();
+    this.props.window.addEventListener('resize', this.onResize);
   }
 
-  componentDidUpdate(prevProps: GalleryProps, prevState: GalleryState) {
+  componentDidUpdate(prevProps: GalleryProps) {
+    // NOTE: this is always called, because children ref is unstable
     if (this.props.children !== prevProps.children) {
-      this.isChildrenDirty = true;
+      this.initializeSlides();
     }
 
-    if (this.isChildrenDirty) {
-      this.isChildrenDirty = false;
-      this.initializeSlides(() => {
-        const { current, slides } = this.state;
-        if (current > slides.length - 1) {
-          this.go(slides.length - 1);
-        }
+    if (this.props.slideIndex !== prevProps.slideIndex) {
+      this.setState({
+        animation: true,
+        deltaX: 0,
+        shiftX: this.calculateIndent(this.props.slideIndex),
       });
-    }
-    if (prevState.current !== this.state.current && this.props.onChange) {
-      this.props.onChange(this.state.current);
-    }
-
-    if (this.props.timeout && !prevProps.timeout) {
-      this.setTimeout(this.props.timeout);
-    }
-
-    if (!this.props.timeout && prevProps.timeout) {
-      this.clearTimeout();
-    }
-
-    if (this.props.slideIndex !== prevProps.slideIndex && typeof this.props.slideIndex === 'number') {
-      this.go(this.props.slideIndex);
     }
   }
 
   componentWillUnmount() {
-    window.removeEventListener('resize', this.onResize);
-    this.clearTimeout();
+    this.props.window.removeEventListener('resize', this.onResize);
   }
 
   render() {
-    const { animation, duration, current, dragging } = this.state;
+    const { animation, duration, dragging } = this.state;
     const {
       children,
       slideWidth,
-      timeout,
-      initialSlideIndex,
       slideIndex,
+      isDraggable,
       onDragStart,
       onDragEnd,
       onChange,
@@ -396,7 +322,7 @@ class Gallery extends Component<GalleryProps, GalleryState> {
       ...restProps
     } = this.props;
 
-    const indent = dragging ? this.calculateDragIndent() : this.calculateIndent(current);
+    const indent = dragging ? this.calculateDragIndent() : this.calculateIndent(slideIndex);
 
     const layerStyle = {
       WebkitTransform: `translateX(${indent}px)`,
@@ -406,15 +332,16 @@ class Gallery extends Component<GalleryProps, GalleryState> {
     };
 
     return (
-      <div className={classNames(getClassName('Gallery', platform), className, `Gallery--${align}`, {
+      <div {...restProps} className={classNames(getClassName('Gallery', platform), className, `Gallery--${align}`, {
         'Gallery--dragging': dragging,
         'Gallery--custom-width': slideWidth === 'custom',
-      })} {...restProps} ref={this.container}>
+      })} ref={this.getRootRef}>
         <Touch
           className="Gallery__viewport"
           onStartX={this.onStart}
           onMoveX={this.onMoveX}
           onEnd={this.onEnd}
+          noSlideClick
           style={{ width: slideWidth === 'custom' ? '100%' : slideWidth }}
           getRootRef={this.getViewportRef}
         >
@@ -429,7 +356,7 @@ class Gallery extends Component<GalleryProps, GalleryState> {
         <div className={classNames('Gallery__bullets', `Gallery__bullets--${bullets}`)}>
           {React.Children.map(children, (_item: ReactElement, index: number) =>
             <div
-              className={classNames('Gallery__bullet', { 'Gallery__bullet--active': index === current })}
+              className={classNames('Gallery__bullet', { 'Gallery__bullet--active': index === slideIndex })}
               key={index}
             />,
           )}
@@ -439,5 +366,48 @@ class Gallery extends Component<GalleryProps, GalleryState> {
     );
   }
 }
+
+const Gallery = withFrame<GalleryProps>(({
+  initialSlideIndex = 0,
+  children,
+  timeout,
+  onChange,
+  ...props
+}) => {
+  const [localSlideIndex, setSlideIndex] = useState(initialSlideIndex);
+  const isControlled = typeof props.slideIndex === 'number';
+  const slideIndex = isControlled ? props.slideIndex : localSlideIndex;
+  const isDraggable = !isControlled || Boolean(onChange);
+
+  const slides = React.Children.toArray(children).filter((item) => Boolean(item));
+  const childCount = slides.length;
+
+  const handleChange: GalleryProps['onChange'] = useCallback((current) => {
+    if (current === slideIndex) {
+      return;
+    }
+    !isControlled && setSlideIndex(current);
+    onChange && onChange(current);
+  }, [onChange, slideIndex]);
+  // autoplay
+  useEffect(() => {
+    if (!timeout || !canUseDOM) {
+      return undefined;
+    }
+    const id = props.window.setTimeout(() => handleChange((slideIndex + 1) % childCount), timeout);
+    return () => props.window.clearTimeout(id);
+  }, [timeout, slideIndex, childCount]);
+  // prevent overflow
+  useEffect(() => handleChange(Math.min(slideIndex, childCount - 1)), [childCount]);
+
+  return (
+    <BaseGallery
+      slideIndex={slideIndex}
+      isDraggable={isDraggable}
+      {...props}
+      onChange={handleChange}
+    >{slides}</BaseGallery>
+  );
+});
 
 export default withPlatform(Gallery);

@@ -31,6 +31,14 @@ module.exports = {
       name: 'Concept',
       content: './pages/concept.md'
     }, {
+      name: 'Adaptivity',
+      content: './pages/adaptivity.md',
+      components: () => [
+        '../src/components/AdaptivityProvider/AdaptivityProvider.tsx',
+        '../src/components/SplitLayout/SplitLayout.tsx',
+        '../src/components/SplitCol/SplitCol.tsx',
+      ]
+    }, {
       name: 'Components',
       sections: [{
         name: 'Layout',
@@ -65,16 +73,18 @@ module.exports = {
       }, {
         name: 'Modals',
         components: () => [
-          '../src/components/ModalRoot/ModalRoot.tsx',
+          '../src/components/ModalRoot/ModalRootAdaptive.tsx',
           '../src/components/ModalPage/ModalPage.tsx',
           '../src/components/ModalPageHeader/ModalPageHeader.tsx',
-          '../src/components/ModalCard/ModalCard.tsx'
+          '../src/components/ModalCard/ModalCard.tsx',
+          '../src/components/ModalDismissButton/ModalDismissButton.tsx'
         ]
       }, {
         name: 'Blocks',
         components: () => [
           '../src/components/Button/Button.tsx',
           '../src/components/CellButton/CellButton.tsx',
+          '../src/components/IconButton/IconButton.tsx',
           '../src/components/Div/Div.tsx',
           '../src/components/Link/Link.tsx',
           '../src/components/Header/Header.tsx',
@@ -82,9 +92,11 @@ module.exports = {
           '../src/components/Card/Card.tsx',
           '../src/components/CardGrid/CardGrid.tsx',
           '../src/components/CardScroll/CardScroll.tsx',
+          '../src/components/ContentCard/ContentCard.tsx',
           '../src/components/Gradient/Gradient.tsx',
-          '../src/components/Cell/Cell.tsx',
           '../src/components/SimpleCell/SimpleCell.tsx',
+          '../src/components/Cell/Cell.tsx',
+          '../src/components/HorizontalCell/HorizontalCell.tsx',
           '../src/components/RichCell/RichCell.tsx',
           '../src/components/List/List.tsx',
           '../src/components/Footer/Footer.tsx',
@@ -113,6 +125,7 @@ module.exports = {
         name: 'Forms',
         components: () => [
           '../src/components/FormLayout/FormLayout.tsx',
+          '../src/components/FormItem/FormItem.tsx',
           '../src/components/FormLayoutGroup/FormLayoutGroup.tsx',
           '../src/components/FormStatus/FormStatus.tsx',
           '../src/components/Slider/Slider.tsx',
@@ -120,10 +133,17 @@ module.exports = {
           '../src/components/Radio/Radio.tsx',
           '../src/components/Checkbox/Checkbox.tsx',
           '../src/components/Input/Input.tsx',
+          '../src/components/ChipsInput/ChipsInput.tsx',
           '../src/components/Select/Select.tsx',
+          '../src/components/NativeSelect/NativeSelect.tsx',
           '../src/components/SelectMimicry/SelectMimicry.tsx',
+          '../src/components/CustomSelect/CustomSelect.tsx',
+          '../src/components/CustomSelectOption/CustomSelectOption.tsx',
+          '../src/components/Chip/Chip.tsx',
           '../src/components/Textarea/Textarea.tsx',
-          '../src/components/File/File.tsx'
+          '../src/components/File/File.tsx',
+          '../src/components/DatePicker/DatePicker.tsx',
+          '../src/components/SliderSwitch/SliderSwitch.tsx',
         ]
       }, {
         name: 'Typography',
@@ -143,6 +163,15 @@ module.exports = {
           '../src/components/ConfigProvider/ConfigProvider.tsx',
           '../src/components/Touch/Touch.tsx',
         ]
+      }, {
+        name: 'Unstable',
+        content: './pages/unstable.md',
+        components: () => [
+          '../src/components/ChipsSelect/ChipsSelect.tsx',
+        ]
+      }, {
+        name: 'Helpers',
+        content: './pages/helpers.md'
       },
       {
         name: 'Server Side Rendering',
@@ -170,20 +199,6 @@ module.exports = {
     path.resolve(__dirname, './setup.js'),
     path.resolve(__dirname, './setup.css')
   ],
-  propsParser(filePath, source, resolver, handlers) {
-    if (/.tsx$/.test(filePath)) {
-      return require('react-docgen-typescript').withCustomConfig('./tsconfig.json', {
-        propFilter(prop) {
-          if (prop.parent) {
-            return !prop.parent.fileName.includes('node_modules')
-          }
-          return true
-        },
-      }).parse(filePath)
-    } else {
-      return require('react-docgen').parse(source, resolver, handlers, { filename: filePath })
-    }
-  },
   dangerouslyUpdateWebpackConfig(webpackConfig) { // запрещаем вычищать .git
     webpackConfig.plugins = webpackConfig.plugins.reduce((acc, item) => {
       if (item instanceof CleanWebpackPlugin) {
